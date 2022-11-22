@@ -1,0 +1,19 @@
+﻿@{
+    ViewBag.Title = "Home Page";
+}
+
+<div class="jumbotron">
+    <h1>Modern Authentication with Azure AD</h1>
+    <p class="lead">This is a proof of concept app.</p>
+    @if (Request.IsAuthenticated)
+            {
+                <h4>Welcome @ViewBag.User.DisplayName!</h4>
+                <p>Use the naviagetion bar at the top of the page to get start</p>
+            }
+     else
+            {
+                @Html.ActionLink("Click here to sign in", "SignIn", "Account", new {area =""}, new {@class = "btn btn-primary btn-large"})
+
+            }
+</div>
+
