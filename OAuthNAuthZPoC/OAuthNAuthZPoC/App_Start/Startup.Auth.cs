@@ -11,9 +11,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
-//using OAuthNAuthZPoC.TokenStorage;
+using OAuthNAuthZPoC.TokenStorage;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
+using OAuthNAuthZPoC.Helpers;
+using Microsoft.IdentityModel.Logging;
 
 namespace OAuthNAuthZPoC
 {
@@ -26,6 +28,7 @@ namespace OAuthNAuthZPoC
 
         public void ConfigureAuth(IAppBuilder app)
         {
+            IdentityModelEventSource.ShowPII = true;
             app.SetDefaultSignInAsAuthenticationType(CookieAuthenticationDefaults.AuthenticationType);
 
             app.UseCookieAuthentication(new CookieAuthenticationOptions());
@@ -41,9 +44,9 @@ namespace OAuthNAuthZPoC
                     TokenValidationParameters = new TokenValidationParameters
                     {
                         //for demo purposes only
-                        ValidIssuer = false.ToString()
+                        ValidIssuer = "false",
 
-                        //ValidIssuer = true,
+                        //ValidIssuer = true.ToString(),
                         //IssuerValidator = (issuer, token, tvp) =>
                         //{
                         //    if (MyCustomTenantValidation(issuer))
@@ -78,18 +81,23 @@ namespace OAuthNAuthZPoC
             notification.Response.Redirect(redirect);
             return Task.FromResult(0);
         }
-
+        //ConfidentialClientApplication wraps the default user token cache with the SessionTokenStore class.
+        //The MSAL library will handle the logic of storing the tokens and refreshing it when needed.
+        //User details obtained from Microsoft Graph is passed to the sessionTokenStore object to store in the sessions.
+        // The OWIN middleware to complete the authentication process.
         private async Task OnAuthorizationCodeReceivedAsync(AuthorizationCodeReceivedNotification notification)
         {
+            notification.HandleCodeRedemption();
+
             var idClient = ConfidentialClientApplicationBuilder.Create(appId)
                 .WithRedirectUri(redirectUri)
                 .WithClientSecret(appSecret)
                 .Build();
 
-            //var signedInUser = new ClaimsPrincipal(notification.AuthenticationTicket.Identity);
-            //var tokenStore = new SessionTokenStore(idClient.UserTokenCache, HttpContext.Current, signedInUser);
-            string message;
-            string debug;
+            var signedInUser = new ClaimsPrincipal(notification.AuthenticationTicket.Identity);
+            var tokenStore = new SessionTokenStore(idClient.UserTokenCache, HttpContext.Current, signedInUser);
+            //string message;
+            //string debug;
 
             try
             {
@@ -98,24 +106,29 @@ namespace OAuthNAuthZPoC
                 var result = await idClient.AcquireTokenByAuthorizationCode(
                     scope, notification.Code).ExecuteAsync();
 
+                var userDetails = await Helper.GetUserDetailsAsync(result.AccessToken);
 
+                tokenStore.SaveUserDetails(userDetails);
+                notification.HandleCodeRedemption(null, result.IdToken);
 
-                message = "Access token retrieved.";
-                debug = result.AccessToken;
+                //message = "User info retrieved.";
+                //debug = $"User: {userDetails.DisplayName}, Email: {userDetails.Email}";
             }
             catch (MsalException ex)
             {
-                message = "AcquireTokenByAuthorizationCodeAsync threw an exceoption";
-                debug = ex.Message;
+                string message = "AcquireTokenByAuthorizationCodeAsync threw an exceoption";
+                notification.HandleCodeRedemption();
+                notification.Response.Redirect($"/Home/Error?message={message}&debug={ex.Message}");
+                //debug = ex.Message;
+            }
+            catch (Microsoft.Graph.ServiceException ex)
+            {
+                string message = "GetUserDetailsAsync threw an exception";
+                notification.HandleResponse();
+                notification.Response.Redirect($"/Home/Error?message={message}&debug={ex.Message}");
             }
 
-            var queryString = $"message={message}&debug={debug}";
-            if (queryString.Length > 2048)
-            {
-                queryString = queryString.Substring(0, 2040) + "...";
-            }
-            notification.HandleResponse();
-            notification.Response.Redirect($"/Home/Error?{queryString}");
+           
         }
     }
 }

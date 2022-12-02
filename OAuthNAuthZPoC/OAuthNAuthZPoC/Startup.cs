@@ -1,4 +1,5 @@
-﻿using Microsoft.Owin;
+﻿using Microsoft.IdentityModel.Logging;
+using Microsoft.Owin;
 using Owin;
 using System;
 
@@ -12,5 +13,7 @@ namespace OAuthNAuthZPoC
         {
             ConfigureAuth(app);
         }
+
+        
     }
 }

@@ -1,8 +1,10 @@
 ﻿using Microsoft.Owin.Security.Cookies;
 using Microsoft.Owin.Security.OpenIdConnect;
+using OAuthNAuthZPoC.TokenStorage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Web;
 using System.Web.Mvc;
 
@@ -14,6 +16,7 @@ namespace OAuthNAuthZPoC.Controllers
         {
             if(!Request.IsAuthenticated)
             {
+                //Signal OWIN to send an authorization request to Azure
                 Request.GetOwinContext().Authentication.Challenge(
                     new Microsoft.Owin.Security.AuthenticationProperties { RedirectUri = "/" },
                     OpenIdConnectAuthenticationDefaults.AuthenticationType);
@@ -24,6 +27,8 @@ namespace OAuthNAuthZPoC.Controllers
         {
             if(Request.IsAuthenticated)
             {
+                var tokenStore = new SessionTokenStore(null, System.Web.HttpContext.Current, ClaimsPrincipal.Current);
+                tokenStore.Clear();
                 Request.GetOwinContext().Authentication.SignOut(CookieAuthenticationDefaults.AuthenticationType);
             }
 
